@@ -1,0 +1,1146 @@
+# BDPAYHUB — FINAL MASTER PROMPT
+## Complete Android Application Development
+
+**Role:** Senior Android Architect, Kotlin Engineer, Mobile Security Engineer & UI/UX Designer  
+**Project:** BDPayHub — Payment Verification & Reconciliation Infrastructure  
+**Platform:** Native Android  
+**Primary Language:** Kotlin  
+**UI:** Jetpack Compose  
+**Backend:** Rust + Axum REST API  
+**Database:** Supabase PostgreSQL (accessed through the Rust backend)  
+**Authentication:** Google Sign-In through Supabase Auth  
+**API Base URL:** Configurable by environment; never hardcode production secrets.
+
+---
+
+# 1. PROJECT OBJECTIVE
+
+Build a professional, secure, production-oriented Android application named **BDPayHub**.
+
+The application acts as an authorized payment-event collection agent for merchants using the BDPayHub SaaS platform in Bangladesh.
+
+Its primary responsibility is to:
+
+1. Authenticate merchants through Google Sign-In.
+2. Register and authorize the Android device with the merchant's BDPayHub account.
+3. Monitor supported payment notification SMS messages with explicit user consent.
+4. Parse supported bKash, Nagad, Rocket and upay transaction notifications locally.
+5. Convert recognized notifications into structured payment events.
+6. Submit those events securely to the BDPayHub Rust backend.
+7. Display processing status, device health, synchronization history and errors.
+8. Maintain a reliable local queue when internet connectivity is unavailable.
+
+**Important:** The app does not receive, hold, transfer or settle customer money. Customer payments go directly to the merchant's registered wallet.
+
+The application must not claim that an SMS alone provides cryptographic proof of payment. The backend performs independent matching and verification before a transaction can be marked successful.
+
+---
+
+# 2. TECHNOLOGY STACK
+
+Use the following technologies:
+
+| Area | Technology |
+|---|---|
+| Language | Kotlin |
+| UI | Jetpack Compose |
+| Architecture | Clean Architecture + MVVM |
+| Async operations | Kotlin Coroutines + Flow |
+| Background tasks | WorkManager |
+| Local database | Room |
+| Networking | Retrofit + OkHttp |
+| Serialization | Kotlinx Serialization |
+| Authentication | Supabase Auth Google OAuth |
+| Secure credential storage | Android Keystore |
+| Preferences | DataStore |
+| Dependency Injection | Hilt |
+| Navigation | Navigation Compose |
+| Image loading | Coil, only if required |
+| Testing | JUnit, MockK, Compose UI Testing |
+| Build system | Gradle Kotlin DSL |
+
+Use stable, mutually compatible library versions. Centralize dependency versions using a Gradle version catalog.
+
+Do not introduce unnecessary dependencies.
+
+---
+
+# 3. APPLICATION ARCHITECTURE
+
+Use a maintainable modular architecture.
+
+Suggested package structure:
+
+```text
+com.bdpayhub.app/
+│
+├── core/
+│   ├── common/
+│   ├── config/
+│   ├── network/
+│   ├── security/
+│   ├── database/
+│   ├── datastore/
+│   └── navigation/
+│
+├── data/
+│   ├── auth/
+│   ├── device/
+│   ├── merchant/
+│   ├── wallet/
+│   ├── sms/
+│   ├── transaction/
+│   └── repository/
+│
+├── domain/
+│   ├── model/
+│   ├── repository/
+│   └── usecase/
+│
+├── service/
+│   ├── SmsReceiver.kt
+│   ├── PaymentEventService.kt
+│   └── DeviceSyncWorker.kt
+│
+├── presentation/
+│   ├── auth/
+│   ├── onboarding/
+│   ├── dashboard/
+│   ├── transactions/
+│   ├── devices/
+│   ├── settings/
+│   └── components/
+│
+└── MainActivity.kt
+```
+
+Keep business logic outside Activities, Composables and BroadcastReceivers.
+
+Use repository interfaces and dependency injection. Separate UI state, domain logic, local persistence and remote API communication.
+
+---
+
+# 4. AUTHENTICATION
+
+Implement Google Sign-In using Supabase Auth.
+
+Requirements:
+
+- Google Sign-In only.
+- No email/password registration.
+- No phone/password authentication.
+- No separate local account creation.
+- Use the same Google account as the merchant's BDPayHub website account.
+- Obtain the Supabase-issued authenticated session.
+- Send the access token to the Rust backend using the Authorization Bearer header.
+- Backend must validate the JWT and identify the merchant from the authenticated account.
+- Handle expired access tokens and refresh sessions securely.
+- Never trust merchant IDs supplied by the Android client without backend authorization.
+
+Authentication screens:
+
+1. Welcome screen.
+2. Google Sign-In screen.
+3. Authentication loading state.
+4. Account validation state.
+5. Device authorization screen.
+6. Successful onboarding.
+
+If the authenticated account has no merchant profile, show a clear message directing the user to complete merchant registration on the BDPayHub website.
+
+Do not create a second merchant profile from the Android app.
+
+---
+
+# 5. DEVICE REGISTRATION AND AUTHORIZATION
+
+Each Android installation must be registered as an authorized device.
+
+Initial product configuration:
+
+- One authorized Android device per merchant on the initial plan.
+- Backend-controlled device limits.
+- Database and app architecture must support future multi-device plans.
+
+Device onboarding:
+
+1. Merchant signs in.
+2. App requests device registration from the backend.
+3. Backend checks merchant status and subscription limits.
+4. Backend creates a pending device registration.
+5. Merchant completes any required authorization or approval.
+6. Backend issues a device-specific credential.
+7. App stores the credential securely using Android Keystore-backed encryption.
+8. App confirms that the device is authorized.
+9. App begins payment-event synchronization.
+
+Device information may include:
+
+- Device ID issued by backend.
+- User-defined device name.
+- Android version.
+- App version.
+- Registration timestamp.
+- Last active timestamp.
+- Authorization status.
+
+Never use an IMEI, phone number or other restricted hardware identifier as a device identity.
+
+Never embed a shared API secret in the APK.
+
+Never store device credentials in plaintext SharedPreferences, ordinary files or source code.
+
+The backend must support device revocation. A revoked device must stop submitting accepted payment events.
+
+---
+
+# 6. SMS PERMISSION AND CONSENT
+
+The app needs access to supported payment notification SMS messages to perform its core function.
+
+Implement a transparent permission onboarding experience.
+
+Before requesting SMS access:
+
+- Explain why the permission is required.
+- Explain which payment notifications are processed.
+- Explain that parsing occurs locally on the device.
+- Explain what structured transaction fields are sent to the backend.
+- Explain that unrelated personal SMS messages must not be collected or uploaded.
+
+Request only the minimum permissions necessary for the implemented functionality.
+
+Requirements:
+
+- Respect Android runtime permission rules.
+- Handle permission denial gracefully.
+- Provide a clear permission status screen.
+- Do not repeatedly pressure users who deny permission.
+- Never bypass Android permission controls.
+- Never access SMS messages without the required permission and user consent.
+- Do not upload raw SMS inbox contents.
+- Do not implement hidden or covert SMS collection.
+- Do not request contacts, call logs, microphone or location permissions unless a separately justified feature genuinely requires them.
+
+**Distribution requirement:** Before planning Google Play distribution, evaluate current Google Play SMS and Call Log permissions policies and eligibility. Do not assume that SMS permissions will be approved for Play Store publication. Keep distribution options configurable for permitted internal or managed deployment where appropriate.
+
+---
+
+# 7. LOCAL SMS PARSER
+
+Implement a dedicated, testable SMS parsing engine.
+
+The parser must identify supported payment messages using:
+
+- Sender ID.
+- Known message structure.
+- Transaction type.
+- Amount.
+- Sender/customer number.
+- Transaction ID.
+- Timestamp.
+- Reference, fee, commission and balance when available.
+
+Parsing must happen locally.
+
+The app must not forward unrelated SMS messages to the backend.
+
+Support the following initial message specifications. These are initial parser patterns supplied for development, not a guarantee that every provider uses these formats in every situation.
+
+## 7.1 bKash
+
+Expected sender ID: `bKash`
+
+### A. Personal account — Send Money received
+
+```text
+You have received Tk [Amount] from [Sender 11-Digit Number]. Ref [Reference]. Fee Tk 0.00. Balance Tk [New Balance]. TrxID [Transaction ID] at [DD/MM/YYYY HH:MM]
+```
+
+Transaction type:
+
+`SEND_MONEY_RECEIVED`
+
+Extract:
+
+- Amount
+- Sender number
+- Reference
+- Fee
+- Balance
+- Transaction ID
+- Transaction time
+
+### B. Personal account — Agent Cash-In received
+
+```text
+Cash In Tk [Amount] from [Agent 11-Digit Number] successful. Fee Tk 0.00. Balance Tk [New Balance]. TrxID [Transaction ID] at [DD/MM/YYYY HH:MM]. Download App: bka.sh
+```
+
+Transaction type:
+
+`AGENT_CASH_IN_RECEIVED`
+
+The sender number represents the agent, not necessarily the customer.
+
+### C. Agent account — Customer Cash-Out received
+
+```text
+You have received Cash Out Tk [Amount] from [Customer 11-Digit Number]. Comm Tk [Commission]. Balance Tk [New Balance]. TrxID [Transaction ID] at [DD/MM/YYYY HH:MM].
+```
+
+Transaction type:
+
+`CUSTOMER_CASH_OUT_RECEIVED`
+
+---
+
+## 7.2 Nagad
+
+Expected sender ID: `NAGAD`
+
+### A. Personal account — P2P received
+
+```text
+Money Received. Amount: Tk [Amount] Sender: [Sender 11-Digit Number] Ref: [Reference] TxnID: [Transaction ID] Balance: Tk [New Balance] [DD/MM/YYYY HH:MM]
+```
+
+Transaction type:
+
+`SEND_MONEY_RECEIVED`
+
+### B. Personal account — Agent Cash-In received
+
+```text
+Cash In Received. Amount: Tk [Amount] Uddokta: [Agent 11-Digit Number] TxnID: [Transaction ID] Balance: Tk [New Balance] [DD/MM/YYYY HH:MM]
+```
+
+Transaction type:
+
+`AGENT_CASH_IN_RECEIVED`
+
+### C. Agent account — Customer Cash-Out received
+
+```text
+Cash Out Received. Amount: Tk [Amount] Customer: [Customer 11-Digit Number] Comm: Tk [Commission] TxnID: [Transaction ID] Balance: Tk [New Balance] [DD/MM/YYYY HH:MM]
+```
+
+Transaction type:
+
+`CUSTOMER_CASH_OUT_RECEIVED`
+
+---
+
+## 7.3 Rocket
+
+Expected sender ID: `16216`
+
+### A. Personal account — P2P received
+
+```text
+You have received BDT [Amount] from [Sender 12-Digit Account]. Fee: BDT [Fee]. Balance: BDT [New Balance]. TrxID: [Transaction ID]. Time: [Date/Time].
+```
+
+Transaction type:
+
+`SEND_MONEY_RECEIVED`
+
+### B. Personal account — Agent Cash-In received
+
+```text
+You have received Cash In of BDT [Amount] from Agent [Agent 12-Digit Account]. Fee: BDT [Fee]. Balance: BDT [New Balance]. TrxID: [Transaction ID]. Time: [Date/Time].
+```
+
+Transaction type:
+
+`AGENT_CASH_IN_RECEIVED`
+
+### C. Agent account — Customer Cash-Out received
+
+```text
+You have received Cash Out of BDT [Amount] from [Customer 12-Digit Account]. Comm: BDT [Commission]. Balance: BDT [New Balance]. TrxID: [Transaction ID]. Time: [Date/Time].
+```
+
+Transaction type:
+
+`CUSTOMER_CASH_OUT_RECEIVED`
+
+---
+
+## 7.4 upay
+
+Expected sender ID: `upay`
+
+### A. Personal account — received payment
+
+```text
+You have received Tk [Amount] from [Sender Number]. Fee Tk 0.00. Balance Tk [New Balance]. TrxID [TrxID] at [DD/MM/YYYY HH:MM].
+```
+
+Transaction type:
+
+`SEND_MONEY_RECEIVED`
+
+### B. Personal account — Agent Cash-In received
+
+```text
+Cash In Tk [Amount] from [Agent Number] successful. Fee Tk 0.00. Balance Tk [New Balance]. TrxID [TrxID] at [DD/MM/YYYY HH:MM].
+```
+
+Transaction type:
+
+`AGENT_CASH_IN_RECEIVED`
+
+Do not invent or assume an unsupported upay agent Cash-Out pattern.
+
+---
+
+# 8. PARSER ENGINE REQUIREMENTS
+
+Create separate parser implementations for each provider.
+
+Suggested interface:
+
+```kotlin
+interface PaymentSmsParser {
+    fun canParse(senderId: String, message: String): Boolean
+
+    fun parse(
+        senderId: String,
+        message: String,
+        receivedAt: Long
+    ): ParsedPaymentEvent?
+}
+```
+
+Use structured parsing with strict validation.
+
+Requirements:
+
+- Normalize whitespace safely.
+- Handle supported Bengali/English digit representations only where explicitly tested.
+- Handle decimal amounts correctly.
+- Validate expected number lengths and formats.
+- Reject malformed transaction IDs.
+- Validate timestamps.
+- Support minor message formatting variations through explicit tested patterns.
+- Avoid overly permissive regular expressions.
+- Never classify an unknown message as a successful payment.
+- Store parser version with each event.
+- Make parser versions independently testable.
+- Maintain a test suite using the exact sample formats above.
+- Keep unsupported formats in a local diagnostic state without uploading raw SMS.
+
+If a message is not recognized, ignore it as a payment event.
+
+Do not create a payment event merely because a message contains words such as `received`, `cash in` or an amount.
+
+---
+
+# 9. PAYMENT EVENT DATA MODEL
+
+After successful local parsing, create a structured event.
+
+Example model:
+
+```kotlin
+data class ParsedPaymentEvent(
+    val provider: String,
+    val transactionType: String,
+    val amount: String,
+    val currency: String = "BDT",
+    val senderNumber: String?,
+    val receiverNumber: String?,
+    val transactionId: String,
+    val transactionTime: String?,
+    val reference: String?,
+    val fee: String?,
+    val commission: String?,
+    val balance: String?,
+    val parserVersion: String,
+    val receivedAt: Long
+)
+```
+
+Important:
+
+- `senderNumber` is the sender/customer number only when the transaction type establishes that meaning.
+- For Agent Cash-In, the sender number is the agent/uddokta number.
+- `receiverNumber` must be based on the merchant's registered wallet configuration and verified backend/device configuration.
+- Do not assume an arbitrary number extracted from an SMS is the receiving merchant wallet.
+- Do not fabricate missing values.
+- Use null for unavailable optional fields.
+- Preserve transaction ID exactly after safe normalization.
+- Do not use floating-point types for monetary calculations. Use decimal-safe representations.
+
+---
+
+# 10. BACKEND API INTEGRATION
+
+The Android application must follow the BDPayHub Rust backend contract.
+
+Base URL must be configurable for development, staging and production.
+
+## 10.1 Authentication
+
+Use:
+
+```http
+Authorization: Bearer SUPABASE_ACCESS_TOKEN
+```
+
+The backend validates the Supabase JWT and identifies the merchant.
+
+## 10.2 Device registration
+
+Use the device registration endpoint defined by the backend OpenAPI specification.
+
+The application must not invent endpoint paths or request fields.
+
+## 10.3 Payment event ingestion
+
+The Android app sends parsed payment events to:
+
+```http
+POST /api/v1/transactions/ingest
+Content-Type: application/json
+Authorization: Bearer DEVICE_CREDENTIAL
+```
+
+Example payload:
+
+```json
+{
+  "merchant_id": "MERCHANT_ID",
+  "device_id": "DEVICE_ID",
+  "provider": "bkash",
+  "transaction_type": "SEND_MONEY_RECEIVED",
+  "amount": "500.00",
+  "currency": "BDT",
+  "sender_number": "01XXXXXXXXX",
+  "receiver_number": "01XXXXXXXXX",
+  "transaction_id": "TRX123456789",
+  "transaction_time": "2026-11-17T00:30:00+06:00",
+  "reference": "COURSE2026",
+  "fee": "0.00",
+  "commission": null,
+  "balance": "2500.00",
+  "parser_version": "1.0.0"
+}
+```
+
+The example values are illustrative only.
+
+Use the exact backend OpenAPI schema as the source of truth. Do not hardcode example IDs or numbers.
+
+The backend must independently validate:
+
+- Merchant ownership.
+- Device authorization.
+- Provider.
+- Registered receiving wallet.
+- Transaction type.
+- Amount.
+- Transaction ID uniqueness.
+- Transaction timestamp.
+- Matching pending payment intent.
+- Customer number where applicable.
+- Intent validity window.
+- Duplicate event status.
+
+The Android app must never mark a transaction successful by itself.
+
+The backend response determines the server-side processing status.
+
+---
+
+# 11. PAYMENT MATCHING RULES
+
+The app must preserve transaction semantics so the backend can match events correctly.
+
+### Send Money received
+
+- Sender number represents the customer.
+- Backend can compare it with the customer number entered during checkout.
+
+### Agent Cash-In received
+
+- Sender number represents the agent/uddokta.
+- It is not the student's/customer's number.
+- Never substitute the agent number for the customer number.
+- Amount alone must not identify a student.
+- Unmatched or ambiguous events remain pending/manual review.
+
+### Customer Cash-Out received
+
+- The customer number may be available in the notification.
+- Backend validates the registered wallet/account configuration before using it for matching.
+
+### Duplicate and ambiguous events
+
+- Preserve transaction IDs.
+- Do not submit repeated events as separate new transactions.
+- Use idempotency and local duplicate checks as an optimization.
+- Backend remains authoritative for duplicate prevention.
+- Do not change a pending event to successful based only on an amount match.
+
+---
+
+# 12. OFFLINE QUEUE AND RELIABLE SYNCHRONIZATION
+
+Implement Room-based persistent event storage.
+
+Required event states:
+
+- `LOCAL_PENDING`
+- `UPLOADING`
+- `SERVER_RECEIVED`
+- `SERVER_REVIEW`
+- `SERVER_MATCHED`
+- `SERVER_REJECTED`
+- `UPLOAD_FAILED`
+
+These are app synchronization states, not replacements for backend payment states.
+
+Requirements:
+
+1. Parse supported SMS locally.
+2. Save the structured event in Room.
+3. Schedule synchronization through WorkManager.
+4. Upload when internet is available.
+5. Retry temporary network failures using exponential backoff.
+6. Prevent duplicate local queue entries.
+7. Preserve events across app restarts and device reboots.
+8. Update local synchronization status from backend responses.
+9. Keep rejected and ambiguous events visible in history.
+10. Do not delete events simply because an upload failed.
+
+Use unique WorkManager jobs where appropriate.
+
+Do not create an uncontrolled infinite retry loop.
+
+Do not silently discard events when the merchant reaches a subscription limit. Display the server response and preserve the local event for appropriate handling.
+
+---
+
+# 13. DASHBOARD UI
+
+Create a professional, modern, clean and trustworthy interface.
+
+The app must feel like a real financial technology product, not an automatically generated template.
+
+Design principles:
+
+- Minimal and professional.
+- Clear information hierarchy.
+- Consistent spacing.
+- Excellent typography.
+- Accessible color contrast.
+- Responsive layouts for different Android screen sizes.
+- Light theme and dark theme.
+- Meaningful loading, empty, success and error states.
+- No unnecessary gradients or excessive decorative elements.
+
+Use BDPayHub branding.
+
+Tagline:
+
+**Every Payment. Verified.**
+
+## Main dashboard
+
+Display:
+
+- Merchant/business name.
+- Device authorization status.
+- SMS permission status.
+- Internet connection status.
+- Last synchronization time.
+- Total payment events received.
+- Successfully matched payments.
+- Pending/review events.
+- Rejected events.
+- Recent activity.
+
+Important: Dashboard statistics must come from backend data or clearly labeled local synchronization data. Never invent financial totals.
+
+## Provider status
+
+Show configured providers:
+
+- bKash
+- Nagad
+- Rocket
+- upay
+
+Display whether a provider is configured and whether its wallet is active.
+
+Do not display a provider as verified unless the backend confirms the configuration.
+
+## Device status
+
+Show:
+
+- Authorized / Pending / Revoked.
+- Device name.
+- Last active time.
+- App version.
+- Last successful synchronization.
+
+---
+
+# 14. TRANSACTION HISTORY
+
+Create a dedicated transaction-event history screen.
+
+Features:
+
+- Search by transaction ID.
+- Filter by provider.
+- Filter by transaction type.
+- Filter by synchronization status.
+- Date range filtering.
+- Pagination.
+- Pull-to-refresh.
+- Transaction details screen.
+
+Transaction detail fields:
+
+- Provider.
+- Transaction ID.
+- Transaction type.
+- Amount.
+- Sender number, if available.
+- Receiving wallet, if confirmed.
+- Transaction time.
+- Reference.
+- Fee/commission, if available.
+- Parser version.
+- Backend processing status.
+- Last synchronization time.
+
+Clearly distinguish:
+
+**Payment Event Received** from **Payment Verified**.
+
+Never show a locally parsed notification as a verified payment.
+
+---
+
+# 15. SETTINGS AND DEVICE MANAGEMENT
+
+Create a settings section containing:
+
+- Merchant account information.
+- Signed-in Google account.
+- Device name.
+- Device authorization status.
+- SMS permission status.
+- Notification settings.
+- Theme settings.
+- App version.
+- Privacy information.
+- Terms of service.
+- Support/contact information.
+- Sign out.
+
+Provide a device synchronization option.
+
+Allow the user to inspect permission status and open Android system settings when permission is disabled.
+
+Do not provide an option to bypass device authorization or backend subscription limits.
+
+When a device is revoked:
+
+- Stop accepted event ingestion.
+- Stop unnecessary background synchronization.
+- Preserve locally stored event history according to the retention policy.
+- Clearly inform the user.
+
+---
+
+# 16. SECURITY REQUIREMENTS
+
+Implement security as a core architectural requirement.
+
+### Credentials
+
+- Store sensitive credentials using Android Keystore-backed encryption.
+- Never store access tokens or device credentials in plaintext.
+- Never hardcode API secrets in the application.
+- Do not log authentication tokens.
+- Do not expose secrets in crash reports.
+
+### Network
+
+- HTTPS only in production.
+- Configure network security appropriately.
+- Do not disable TLS certificate validation.
+- Use safe request timeouts.
+- Handle HTTP errors consistently.
+- Apply appropriate retry rules.
+- Use request IDs for diagnostics where supported.
+
+### SMS privacy
+
+- Parse locally.
+- Never upload raw SMS messages.
+- Never upload unrelated personal messages.
+- Send only the structured payment-event fields required by the backend.
+- Minimize local retention.
+- Explain data handling in the privacy screen.
+
+### Application integrity
+
+- Validate backend responses.
+- Do not trust client-side merchant identity or device authorization.
+- Handle revoked and expired credentials.
+- Prevent duplicate local event submissions.
+- Avoid exposing sensitive information in notifications.
+
+### Logging
+
+Use structured logs with sensitive-field redaction.
+
+Never log:
+
+- Full raw SMS.
+- Access tokens.
+- Device credentials.
+- Full customer numbers unless essential and appropriately masked.
+- Other unnecessary personal information.
+
+---
+
+# 17. NOTIFICATIONS
+
+Provide useful notifications for:
+
+- Device authorization completed.
+- Device authorization revoked.
+- Payment event successfully synchronized.
+- Synchronization failure requiring attention.
+- Permission disabled.
+- Session expired.
+
+Do not create a notification for every unrelated SMS.
+
+Do not display full transaction or customer information on the lock screen by default.
+
+Allow users to configure non-essential notifications.
+
+---
+
+# 18. ERROR HANDLING
+
+Implement consistent error handling.
+
+Handle:
+
+- No internet connection.
+- Backend unavailable.
+- Authentication expired.
+- Device not authorized.
+- Device revoked.
+- Subscription limit reached.
+- Invalid API response.
+- Duplicate transaction event.
+- Unknown SMS format.
+- Missing SMS permission.
+- Local database failure.
+- WorkManager retry exhaustion.
+- Server-side validation rejection.
+
+Use clear user-facing messages.
+
+Do not expose raw stack traces, SQL errors or internal server details to users.
+
+---
+
+# 19. PERFORMANCE AND BATTERY
+
+The app should operate reliably without unnecessary battery consumption.
+
+Requirements:
+
+- Avoid continuous polling.
+- Use event-driven SMS reception where supported.
+- Use WorkManager for deferred synchronization.
+- Avoid unnecessary background services.
+- Keep database queries efficient.
+- Avoid blocking the main thread.
+- Use Kotlin Coroutines appropriately.
+- Handle Android background execution restrictions.
+- Test behavior after reboot and app process termination.
+
+Do not promise uninterrupted background execution on every Android device. Clearly communicate OS restrictions and battery optimization behavior where relevant.
+
+---
+
+# 20. TESTING REQUIREMENTS
+
+Write automated tests before declaring the application complete.
+
+### Parser tests
+
+Test every supplied SMS format for:
+
+- bKash P2P.
+- bKash Agent Cash-In.
+- bKash Customer Cash-Out.
+- Nagad P2P.
+- Nagad Agent Cash-In.
+- Nagad Customer Cash-Out.
+- Rocket P2P.
+- Rocket Agent Cash-In.
+- Rocket Customer Cash-Out.
+- upay P2P.
+- upay Agent Cash-In.
+
+Also test:
+
+- Incorrect sender IDs.
+- Missing transaction IDs.
+- Invalid amounts.
+- Invalid phone/account numbers.
+- Malformed timestamps.
+- Unrecognized messages.
+- Extra whitespace.
+- Duplicate transaction IDs.
+- Unsupported message variations.
+
+### Repository and networking tests
+
+Test:
+
+- Successful authentication.
+- Expired session.
+- Device registration.
+- Device revocation.
+- Successful event upload.
+- Duplicate upload.
+- Backend unavailable.
+- Offline queue.
+- Retry behavior.
+- Server-side rejection.
+
+### UI tests
+
+Test:
+
+- Sign-In screen.
+- Onboarding.
+- Permission screens.
+- Dashboard loading.
+- Empty transaction history.
+- Transaction details.
+- Settings.
+- Error states.
+
+### Security tests
+
+Verify:
+
+- No raw SMS upload.
+- No plaintext device credential storage.
+- No hardcoded production secrets.
+- No sensitive token logging.
+- No unauthorized event ingestion.
+- No false successful payment state.
+
+---
+
+# 21. BUILD CONFIGURATION
+
+Provide separate environments:
+
+- Development.
+- Staging.
+- Production.
+
+Use BuildConfig or a secure configuration mechanism for environment-specific API base URLs.
+
+Do not commit secrets or private credentials.
+
+Provide:
+
+- Debug APK configuration.
+- Release build configuration.
+- App signing guidance.
+- ProGuard/R8 configuration where applicable.
+- Version code and version name management.
+- Build instructions.
+- Installation instructions.
+
+Do not include private signing keys in the repository.
+
+---
+
+# 22. DOCUMENTATION
+
+Create clear project documentation:
+
+1. Project overview.
+2. Architecture explanation.
+3. Folder structure.
+4. Technology stack.
+5. Environment setup.
+6. Supabase Google Sign-In configuration.
+7. Backend API integration.
+8. Device authorization flow.
+9. SMS permission setup.
+10. Supported provider SMS patterns.
+11. Parser testing.
+12. Local database structure.
+13. WorkManager synchronization.
+14. Security considerations.
+15. Build and release instructions.
+16. Known limitations.
+
+Document any unsupported provider format instead of pretending it is supported.
+
+---
+
+# 23. IMPLEMENTATION PHASES
+
+Implement the project in controlled phases.
+
+### Phase 1 — Project foundation
+
+- Create Android project.
+- Configure Kotlin and Jetpack Compose.
+- Set up Clean Architecture.
+- Configure Hilt, Room, Retrofit and DataStore.
+- Create navigation and theme system.
+
+### Phase 2 — Authentication
+
+- Configure Supabase Google Sign-In.
+- Implement login/logout.
+- Handle session persistence.
+- Integrate backend JWT validation.
+
+### Phase 3 — Device authorization
+
+- Implement device registration.
+- Implement authorization state.
+- Securely store device credentials.
+- Handle revocation.
+
+### Phase 4 — SMS parser
+
+- Implement provider-specific parsers.
+- Create structured payment-event models.
+- Add comprehensive parser tests.
+- Ensure unrelated SMS is ignored.
+
+### Phase 5 — Local persistence and synchronization
+
+- Implement Room database.
+- Implement offline queue.
+- Integrate WorkManager.
+- Implement event ingestion API.
+- Handle duplicate events and retries.
+
+### Phase 6 — Dashboard and transaction history
+
+- Build dashboard.
+- Display backend statistics.
+- Build transaction history.
+- Build transaction details.
+- Add filters and pagination.
+
+### Phase 7 — Settings and security
+
+- Add device management.
+- Add permission management.
+- Implement secure logging.
+- Review credential storage.
+- Complete error handling.
+
+### Phase 8 — Final verification
+
+- Run all automated tests.
+- Verify API contract compatibility.
+- Test on physical Android devices.
+- Test offline behavior.
+- Test app restart and reboot behavior.
+- Test device revocation.
+- Review Android permission and distribution requirements.
+- Produce release build.
+
+---
+
+# 24. STRICT DEVELOPMENT RULES
+
+Follow these rules throughout implementation:
+
+1. Build a real working Android application, not a UI prototype.
+2. Use native Kotlin and Jetpack Compose.
+3. Do not use a Node.js backend.
+4. Do not create a separate authentication system.
+5. Use the existing BDPayHub Rust backend contract.
+6. Do not invent API endpoints or response fields.
+7. Consult the backend OpenAPI specification before implementing networking.
+8. Do not hardcode merchant IDs, wallet numbers, device IDs or transaction values.
+9. Never upload raw SMS messages.
+10. Never mark payments successful on the Android client.
+11. Do not confuse agent numbers with customer numbers.
+12. Do not treat an amount match as sufficient payment verification.
+13. Do not silently delete queued payment events.
+14. Do not use insecure credential storage.
+15. Do not add unnecessary permissions.
+16. Do not implement fake dashboard statistics.
+17. Do not leave placeholder buttons or non-functional navigation.
+18. Do not hide implementation errors behind mock data.
+19. Do not claim features are complete without testing them.
+20. Keep the app and website API contracts consistent.
+
+Before changing an existing implementation, inspect the current repository, architecture, dependencies and backend API documentation.
+
+Preserve working functionality. Avoid unnecessary rewrites.
+
+If an API contract is missing or ambiguous, document the exact missing requirement and request clarification instead of inventing a contract.
+
+---
+
+# 25. FINAL ACCEPTANCE CRITERIA
+
+The application is considered complete only when:
+
+- Google Sign-In works with the BDPayHub merchant account.
+- Device registration and authorization work.
+- Device credentials are securely stored.
+- Required SMS permission is handled transparently.
+- Supported payment SMS messages are parsed locally.
+- Unrelated SMS messages are not uploaded.
+- All supported provider parser tests pass.
+- Structured payment events are stored locally.
+- Offline events synchronize when connectivity returns.
+- Duplicate submissions are safely handled.
+- Backend responses determine event processing status.
+- The dashboard displays real backend data.
+- Transaction history and details work.
+- Device revocation is enforced.
+- Credentials and sensitive data are protected.
+- Error and loading states are implemented.
+- App behavior is tested on physical devices.
+- Release build completes successfully.
+- Documentation is complete.
+
+**Final delivery must include:**
+
+1. Complete Android Studio project.
+2. Clean and maintainable Kotlin source code.
+3. Working Jetpack Compose UI.
+4. Room database implementation.
+5. Provider-specific SMS parsing engine.
+6. Supabase Google authentication.
+7. Device authorization integration.
+8. Rust backend API integration.
+9. Offline event queue and synchronization.
+10. Automated test suite.
+11. Build and setup documentation.
+12. Release-ready APK configuration.
+
+**Primary objective:** Deliver a reliable, privacy-conscious and professionally designed Android companion application for BDPayHub that collects authorized payment notification events and securely synchronizes them with the BDPayHub Rust backend for server-side payment verification.

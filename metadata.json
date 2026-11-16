@@ -1,0 +1,6 @@
+{
+  "name": "BDPayHub",
+  "description": "Payment verification, SMS transaction parsing, and reconciliation agent for Bangladesh merchants supporting bKash, Nagad, Rocket, and upay.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

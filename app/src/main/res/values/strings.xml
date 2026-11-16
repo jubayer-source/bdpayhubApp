@@ -1,0 +1,43 @@
+<resources>
+    <string name="app_name">BDPayHub</string>
+    <string name="app_tagline">Every Payment. Verified.</string>
+    <string name="non_custodial_notice">BDPayHub is a payment-event collection agent. Customer payments go directly to your registered wallet. SMS notifications are parsed locally and verified independently by the BDPayHub backend.</string>
+
+    <!-- Navigation -->
+    <string name="nav_dashboard">Dashboard</string>
+    <string name="nav_transactions">Transactions</string>
+    <string name="nav_devices">Agent &amp; Parser</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Auth & Onboarding -->
+    <string name="welcome_title">BDPayHub Merchant Agent</string>
+    <string name="welcome_subtitle">Secure payment notification ingestion and server-side reconciliation for Bangladesh merchants.</string>
+    <string name="continue_with_google">Continue with Google</string>
+    <string name="auth_google_only_notice">Sign in using the same Google account registered on your BDPayHub merchant dashboard. Email/password and local accounts are not supported.</string>
+    <string name="no_merchant_profile_title">Merchant Profile Not Found</string>
+    <string name="no_merchant_profile_message">This Google account does not have an active BDPayHub merchant profile. Please complete merchant registration on the BDPayHub website first.</string>
+    <string name="device_registration_title">Device Authorization</string>
+    <string name="device_registration_subtitle">Register this Android device as your authorized payment-event collection agent.</string>
+    <string name="sms_consent_title">Transparent SMS Permission &amp; Privacy</string>
+    <string name="sms_consent_description">BDPayHub requires RECEIVE_SMS permission solely to detect incoming payment notifications from bKash, Nagad, Rocket (16216), and upay. All parsing happens 100% locally on your device. Raw SMS messages and personal conversations are never stored or uploaded.</string>
+    <string name="onboarding_complete_title">Device Authorized &amp; Ready</string>
+
+    <!-- Notifications -->
+    <string name="notif_channel_sync_name">Payment Synchronization</string>
+    <string name="notif_channel_security_name">Device Authorization &amp; Security</string>
+
+    <!-- Errors -->
+    <string name="error_no_internet">No internet connection. Payment events are safely queued locally and will synchronize automatically when connectivity returns.</string>
+    <string name="error_backend_unavailable">BDPayHub server is temporarily unreachable. Queued events will retry with exponential backoff.</string>
+    <string name="error_auth_expired">Your merchant session has expired. Please sign in again with Google to refresh authorization.</string>
+    <string name="error_device_not_authorized">This device is not yet authorized to submit payment events. Complete device authorization first.</string>
+    <string name="error_device_revoked">Device authorization has been revoked by the merchant dashboard. Event ingestion and background sync are halted.</string>
+    <string name="error_subscription_limit">Merchant plan limit reached. Event is preserved locally; upgrade your BDPayHub plan to resume ingestion.</string>
+    <string name="error_invalid_response">Received an unexpected response format from the server. Please try again later.</string>
+    <string name="error_duplicate_event">Duplicate Transaction ID detected. This payment event has already been recorded.</string>
+    <string name="error_unknown_sms_format">Unrecognized SMS format. Ignored as a payment event and logged in local diagnostics without raw message content.</string>
+    <string name="error_missing_sms_permission">SMS permission is disabled. Automated payment notification capture is paused until permission is granted.</string>
+    <string name="error_database_failure">Local database storage error occurred while accessing the event queue.</string>
+    <string name="error_retry_exhausted">Synchronization retry limit reached. Please inspect network status and trigger manual sync.</string>
+    <string name="error_server_rejected">Server validation rejected this payment event (unmatched wallet, invalid window, or duplicate TrxID).</string>
+</resources>
